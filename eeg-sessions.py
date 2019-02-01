@@ -12,18 +12,26 @@ from os.path import isfile, join, splitext, exists
 from pprint import pprint
 from datetime import datetime
 
+SESSIONS_DIR = "./sessions"
+TMP_PATH = join(SESSIONS_DIR, 'tmp')
+IMOPORT_JSON = "import.json"
+TIME_ZONE = "Asia/Taipei"
+
 def timestamp_to_datetime(timestamp):
-	# timestamp = timestamp/1000
-	timezone = pytz.timezone("Asia/Taipei")
+	"""
+	The Aurora sessions.json uses longer timestamp digits (13 digits).
+	We will check and transform it to datetime format in order to store in DB
+	"""
+
+	# check timestamp length if it's longer format
+	if(len(str(timestamp))==13):
+		timestamp = timestamp/1000
+
+	timezone = pytz.timezone(TIME_ZONE)
 	dt = datetime.utcfromtimestamp(timestamp)
 	local_dt = timezone.localize(dt)
 	tsdt = local_dt.isoformat()
 	return tsdt
-
-
-SESSIONS_DIR = "./sessions"
-TMP_PATH = join(SESSIONS_DIR, 'tmp')
-IMOPORT_JSON = "import.json"
 
 # check and create folder
 if not exists(SESSIONS_DIR):
@@ -65,12 +73,6 @@ DB_PORT = '5432'
 conn = psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST, port=DB_PORT)
 cur = conn.cursor()
 
-# query_check_db = "SELECT 1 FROM pg_database WHERE datname='eeg'"
-
-# db_exists = cur.execute(query_check_db)
-
-# print db_exists
-
 # sys.exit()
 
 dirs = listdir(TMP_PATH)
@@ -94,27 +96,37 @@ for dir in dirs:
 		with open(session_file_path, 'r') as data_file:
 
 			data = json.load(data_file)
-			session_at = data['session_at']/1000
 			session_id = data['id']
-
+			session_at = data['session_at']
+			session_at_dt = timestamp_to_datetime(data['session_at'])
+			awake_at = data['awake_at']
+			awake_at_dt = timestamp_to_datetime(data['awake_at'])
+			# includes = ['id', 'session_at', 'awake_at']
+			query = "CREATE TABLE IF NOT EXISTS sessions (id uuid, session_at timestamptz, awake_at timestamptz);"
+			query += "INSERT INTO sessions (id, session_at, awake_at) SELECT '" + session_id + "','" + str(session_at_dt) + "','" + str(awake_at_dt) + "' WHERE NOT EXISTS (SELECT id FROM sessions WHERE id='" + session_id + "');";
+			cur.execute(query)
+			conn.commit()
 		# session_at = session_at/1000
 
 		print "Session ID: " + session_id
-		print "Session At: " + timestamp_to_datetime(session_at)
+		print "Session At: " + session_at_dt
 		# print "asleep timestamp: " + int(init_timestamp)
 
-		# json file defined the database table name and the datastream file name and interval which we want to import to database later
+		# json file defined the database table name and the datastream file name
+		# and interval which we want to import to database later
 		with open(IMOPORT_JSON, "r") as file:
 			db_import_files = json.load(file)
 
 		stream_files = listdir(sub_dir_path)
-		print db_import_files
+
 		# check out the target files
 		for import_file in db_import_files:
 
 			table = import_file['table']
 			stream_file = import_file['file']
 
+			# if the csv file exists, which mean it matches the one we setup in import.json.
+			# We can start to process the data
 			if stream_file in stream_files:
 
 				print "Import to table:", table
@@ -124,7 +136,7 @@ for dir in dirs:
 					data = file.read()
 
 				data_list = data.split(",");
-				tsdt = timestamp_to_datetime(session_at)
+				# tsdt = timestamp_to_datetime(session_at)
 
 				timestamp = session_at
 
