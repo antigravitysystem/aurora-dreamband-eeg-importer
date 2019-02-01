@@ -23,6 +23,7 @@ def timestamp_to_datetime(timestamp):
 
 SESSIONS_DIR = "./sessions"
 TMP_PATH = join(SESSIONS_DIR, 'tmp')
+IMOPORT_JSON = "import.json"
 
 # check and create folder
 if not exists(SESSIONS_DIR):
@@ -102,22 +103,17 @@ for dir in dirs:
 		print "Session At: " + timestamp_to_datetime(session_at)
 		# print "asleep timestamp: " + int(init_timestamp)
 
-		# define the database table name and the datastream file name and interval which we want to import to database later
-		db_import_files = {
-			'eeg_alpha' : {'file': 'eeg-alpha.csv', 'interval': 2, 'data_type': 'double precision'},
-			'eeg_beta'  : {'file': 'eeg-beta.csv',  'interval': 2, 'data_type': 'double precision'},
-			'eeg_delta' : {'file': 'eeg-delta.csv', 'interval': 2, 'data_type': 'double precision'},
-			'eeg_theta' : {'file': 'eeg-theta.csv', 'interval': 2, 'data_type': 'double precision'},
-			'eeg_gamma' : {'file': 'eeg-gamma.csv', 'interval': 2, 'data_type': 'double precision'},
-			'batt' : {'file': 'batt.csv', 'interval': 60, 'data_type': 'integer'}
-		}
+		# json file defined the database table name and the datastream file name and interval which we want to import to database later
+		with open(IMOPORT_JSON, "r") as file:
+			db_import_files = json.load(file)
 
 		stream_files = listdir(sub_dir_path)
-
+		print db_import_files
 		# check out the target files
-		for table in db_import_files:
+		for import_file in db_import_files:
 
-			stream_file = db_import_files[table]['file']
+			table = import_file['table']
+			stream_file = import_file['file']
 
 			if stream_file in stream_files:
 
@@ -127,7 +123,7 @@ for dir in dirs:
 				with open(stream_file_path, 'r') as file:
 					data = file.read()
 
-				stream_data_list = data.split(",");
+				data_list = data.split(",");
 				tsdt = timestamp_to_datetime(session_at)
 
 				timestamp = session_at
@@ -140,13 +136,13 @@ for dir in dirs:
 				down_size = 30
 
 				# caculate the correct interval if we downsize the data stream
-				interval = down_size * db_import_files[table]['interval']
+				interval = down_size * import_file['interval']
 
-				data_type = db_import_files[table]['data_type']
+				data_type = import_file['data_type']
 
 				query = "CREATE TABLE IF NOT EXISTS " + table + " (ts timestamptz, value " + data_type + ");"
 
-				for value in stream_data_list:
+				for value in data_list:
 
 					# generate the query list, if the record exists, skip it.
 					if data_list_index % down_size == 0:
@@ -159,8 +155,8 @@ for dir in dirs:
 
 				cur.execute(query)
 				conn.commit()
-		print 'delete tmp', sub_dir_path
-		shutil.rmtree(sub_dir_path)
+		# print 'delete tmp', sub_dir_path
+		# shutil.rmtree(sub_dir_path)
 
 
 # if no files available, just stop
