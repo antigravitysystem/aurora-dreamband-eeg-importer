@@ -92,27 +92,24 @@ for dir in dirs:
 		# print "session_file_path:", session_file_path
 		print "Session :", dir
 
-		session_at = ""
-
 		# open session.txt, look for string "date: xxxx-xx-xx"
 		with open(session_file_path, 'r') as data_file:
 
 			data = json.load(data_file)
+
 			session_id = data['id']
 			session_at = data['session_at']/1000
 			session_at_dt = timestamp_to_datetime(data['session_at'])
 			awake_at = data['awake_at']
 			awake_at_dt = timestamp_to_datetime(data['awake_at'])
-			# includes = ['id', 'session_at', 'awake_at']
+
 			query = "CREATE TABLE IF NOT EXISTS sessions (id uuid, session_at timestamptz, awake_at timestamptz);"
 			query += "INSERT INTO sessions (id, session_at, awake_at) SELECT '" + session_id + "','" + str(session_at_dt) + "','" + str(awake_at_dt) + "' WHERE NOT EXISTS (SELECT id FROM sessions WHERE id='" + session_id + "');";
 			cur.execute(query)
 			conn.commit()
-		# session_at = session_at/1000
 
 		print "Session ID: " + session_id
 		print "Session At: " + session_at_dt
-		# print "asleep timestamp: " + int(init_timestamp)
 
 		# json file defined the database table name and the datastream file name
 		# and interval which we want to import to database later
@@ -161,7 +158,6 @@ for dir in dirs:
 					# generate the query list, if the record exists, skip it.
 					if data_list_index % down_size == 0:
 						tsdt = timestamp_to_datetime(timestamp)
-						print tsdt
 						timestamp = timestamp + interval
 				 		query = query + "INSERT INTO " + table + " (ts, value) SELECT '" + tsdt + "','" + str(value) + "' WHERE NOT EXISTS (SELECT ts FROM " + table + " WHERE ts='" + tsdt + "');";
 					data_list_index += 1
