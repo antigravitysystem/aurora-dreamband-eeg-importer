@@ -92,12 +92,14 @@ for dir in dirs:
 		# print "session_file_path:", session_file_path
 		print "Session :", dir
 
+		session_at = ""
+
 		# open session.txt, look for string "date: xxxx-xx-xx"
 		with open(session_file_path, 'r') as data_file:
 
 			data = json.load(data_file)
 			session_id = data['id']
-			session_at = data['session_at']
+			session_at = data['session_at']/1000
 			session_at_dt = timestamp_to_datetime(data['session_at'])
 			awake_at = data['awake_at']
 			awake_at_dt = timestamp_to_datetime(data['awake_at'])
@@ -159,6 +161,7 @@ for dir in dirs:
 					# generate the query list, if the record exists, skip it.
 					if data_list_index % down_size == 0:
 						tsdt = timestamp_to_datetime(timestamp)
+						print tsdt
 						timestamp = timestamp + interval
 				 		query = query + "INSERT INTO " + table + " (ts, value) SELECT '" + tsdt + "','" + str(value) + "' WHERE NOT EXISTS (SELECT ts FROM " + table + " WHERE ts='" + tsdt + "');";
 					data_list_index += 1
@@ -167,8 +170,8 @@ for dir in dirs:
 
 				cur.execute(query)
 				conn.commit()
-		# print 'delete tmp', sub_dir_path
-		# shutil.rmtree(sub_dir_path)
+		print 'delete tmp', sub_dir_path
+		shutil.rmtree(sub_dir_path)
 
 
 # if no files available, just stop
