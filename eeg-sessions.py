@@ -60,7 +60,7 @@ for file in onlyfiles:
 				# has_session_files = True
 		except zipfile.BadZipfile:
 			print "Bad zip! Skip..." + file + "\n"
-		print 'delete zip', file_path
+		# print 'delete zip', file_path
 		os.remove(file_path)
 
 
