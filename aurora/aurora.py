@@ -23,14 +23,15 @@ class SESSION_IMPORTER():
 
         # check and create folder
         if not exists(self.SESSIONS_DIR):
-        	os.makedirs(self.SESSIONS_DIR)
+            print "Create \"sessions\" folder"
+            os.makedirs(self.SESSIONS_DIR)
 
         if not exists(self.TMP_PATH):
-        	os.makedirs(self.TMP_PATH)
+            os.makedirs(self.TMP_PATH)
 
         self.db_connect()
 
-    def timestamp_to_datetime(timestamp):
+    def timestamp_to_datetime(self, timestamp):
         """
         The Aurora sessions.json uses longer timestamp digits (13 digits).
         We will check and transform it to datetime format in order to store in DB
@@ -39,11 +40,12 @@ class SESSION_IMPORTER():
         # check timestamp length if it's longer format
         if(len(str(timestamp)) == 13):
             timestamp = timestamp/1000
-            timezone = pytz.timezone(self.TIME_ZONE)
-            dt = datetime.utcfromtimestamp(timestamp)
-            local_dt = timezone.localize(dt)
-            tsdt = local_dt.isoformat()
-            return tsdt
+
+        timezone = pytz.timezone(self.TIME_ZONE)
+        dt = datetime.utcfromtimestamp(timestamp)
+        local_dt = timezone.localize(dt)
+        tsdt = local_dt.isoformat()
+        return tsdt
 
     def extract_files(self):
         SESSIONS_DIR = self.SESSIONS_DIR
@@ -76,27 +78,26 @@ class SESSION_IMPORTER():
         config = configparser.ConfigParser()
         config.read(config_file)
         # sections = config.sections()
-
         if config.has_section('postgresql'):
-            postgresql = config['postgresql']
-            DB_NAME = postgresql['DB_NAME']
-            DB_USER = postgresql['DB_USER']
-            DB_PASS = postgresql['DB_PASS']
-            DB_HOST = postgresql['DB_HOST']
-            DB_PORT = postgresql['DB_PORT']
-            return DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT
+            return self.read_config_postgresql_settings(config)
+
+    def read_config_postgresql_settings(self, config):
+        postgresql = config['postgresql']
+        DB_NAME = postgresql['DB_NAME']
+        DB_USER = postgresql['DB_USER']
+        DB_PASS = postgresql['DB_PASS']
+        DB_HOST = postgresql['DB_HOST']
+        DB_PORT = postgresql['DB_PORT']
+        return DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT
+
 
     def db_connect(self):
         config_file = self.CONFIG_FILE
         DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT = self.read_config(config_file)
-        # DB_NAME = self.DB_NAME
-        # DB_USER = self.DB_USER
-        # DB_PASS = self.DB_PASS
-        # DB_HOST = self.DB_HOST
-        # DB_PORT = self.DB_PORT
+
         try:
             self.conn = psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST, port=DB_PORT)
-            cur = self.conn.cursor()
+            self.cur = self.conn.cursor()
             print "Database connected"
         except:
             print "Database connection failed. EXIT"
@@ -110,20 +111,22 @@ class SESSION_IMPORTER():
 
             session_id = data['id']
             session_at = data['session_at']/1000
-            session_at_dt = timestamp_to_datetime(data['session_at'])
+            session_at_dt = self.timestamp_to_datetime(data['session_at'])
             awake_at = data['awake_at']
-            awake_at_dt = timestamp_to_datetime(data['awake_at'])
+            awake_at_dt = self.timestamp_to_datetime(data['awake_at'])
 
             query = "CREATE TABLE IF NOT EXISTS sessions (id uuid, session_at timestamptz, awake_at timestamptz);"
             query += "INSERT INTO sessions (id, session_at, awake_at) SELECT '" + session_id + "','" + str(session_at_dt) + "','" + str(awake_at_dt) + "' WHERE NOT EXISTS (SELECT id FROM sessions WHERE id='" + session_id + "');";
             print "Session ID: " + session_id
             print "Session At: " + session_at_dt
-            cur.execute(query)
-            conn.commit()
+            self.cur.execute(query)
+            self.conn.commit()
 
-    def import_files_to_db(self, json):
+            return session_at
 
-        with open(json, "r") as file:
+    def import_files_to_db(self, sub_dir_path, session_at):
+        import_json = self.IMOPORT_JSON
+        with open(import_json, "r") as file:
             db_import_files = json.load(file)
 
         # check out the target files
@@ -138,6 +141,7 @@ class SESSION_IMPORTER():
 
                 table = import_file['table']
                 print "Import to table:", table
+
                 stream_file_path = join(sub_dir_path, stream_file)
 
                 with open(stream_file_path, 'r') as file:
@@ -162,23 +166,23 @@ class SESSION_IMPORTER():
                 query = "CREATE TABLE IF NOT EXISTS " + table + " (ts timestamptz, value " + data_type + ");"
 
                 for value in data_list:
-
                     # generate the query list, if the record exists, skip it.
                     if data_list_index % down_size == 0:
                         tsdt = self.timestamp_to_datetime(timestamp)
                         timestamp = timestamp + interval
-                        query = query + "INSERT INTO " + table + " (ts, value) SELECT '" + tsdt + "','" + str(value) + "' WHERE NOT EXISTS (SELECT ts FROM " + table + " WHERE ts='" + tsdt + "');";
+                        query += "INSERT INTO " + table + " (ts, value) SELECT '" + tsdt + "','" + str(value) + "' WHERE NOT EXISTS (SELECT ts FROM " + table + " WHERE ts='" + tsdt + "');";
                     data_list_index += 1
 
                 print "Proccessing", stream_file + "\n"
 
-                cur.execute(query)
-                conn.commit()
+                self.cur.execute(query)
+                self.conn.commit()
 
 # sys.exit()
     def run_import(self):
         TMP_PATH = self.TMP_PATH
-        json = self.IMOPORT_JSON
+
+        self.extract_files()
         dirs = listdir(TMP_PATH)
 
         print dirs
@@ -196,8 +200,8 @@ class SESSION_IMPORTER():
                 # print "session_file_path:", session_file_path
                 print "Session :", dir
 
-                self.proccess_session_file(session_file_path)
-                self.import_files_to_db(json)
+                session_at = self.proccess_session_file(session_file_path)
+                self.import_files_to_db(sub_dir_path, session_at)
 
                 # json file defined the database table name and the datastream file name
                 # and interval which we want to import to database later
@@ -213,3 +217,7 @@ class SESSION_IMPORTER():
                 sys.exit()
 
         self.conn.close()
+
+if __name__ == '__main__':
+    importer = SESSION_IMPORTER()
+    importer.run_import()
