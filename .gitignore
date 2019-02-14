@@ -1,3 +1,4 @@
 *.zip
-sessions/
 *.pyc
+sessions/
+.vscode/
