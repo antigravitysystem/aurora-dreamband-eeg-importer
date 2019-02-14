@@ -1,8 +1,8 @@
 [
 	{"table":"ss", "file":"ss.csv", "interval":2, "data_type":"integer"},
-	{"table":"st", "file":"st.csv", "interval": 30, "data_type":"integer"},
+	{"table":"st", "file":"st.csv", "interval":30, "data_type":"integer"},
 	{"table":"eeg_alpha", "file":"eeg-alpha.csv", "interval":2, "data_type":"double precision"},
-	{"table":"eeg_beta", "file":"eeg-beta.csv",  "interval":2, "data_type":"double precision"},
+	{"table":"eeg_beta",  "file":"eeg-beta.csv",  "interval":2, "data_type":"double precision"},
 	{"table":"eeg_delta", "file":"eeg-delta.csv", "interval":2, "data_type":"double precision"},
 	{"table":"eeg_theta", "file":"eeg-theta.csv", "interval":2, "data_type":"double precision"},
 	{"table":"eeg_gamma", "file":"eeg-gamma.csv", "interval":2, "data_type":"double precision"}
