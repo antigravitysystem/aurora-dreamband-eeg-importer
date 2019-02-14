@@ -17,9 +17,17 @@ class SESSION_IMPORTER():
     def __init__(self):
         self.SESSIONS_DIR = "./sessions"
         self.TMP_PATH = join(self.SESSIONS_DIR, 'tmp')
+
+        # json file defined the database table name and the datastream file name
+        # and interval which we want to import to database later
         self.IMOPORT_JSON = "import.json"
         self.TIME_ZONE = "Asia/Taipei"
         self.CONFIG_FILE = 'db.conf'
+
+        # since the data stream is pretty huge, we don't want to use all of the data.
+        # So we can reduce the size of the stream.
+        # The value means to downsize how many times of the data feed.
+        self.DOWN_SIZE = 30
 
         # check and create folder
         if not exists(self.SESSIONS_DIR):
@@ -53,7 +61,7 @@ class SESSION_IMPORTER():
         # look for files in session directory
         onlyfiles = [f for f in listdir(SESSIONS_DIR) if isfile(join(SESSIONS_DIR, f))]
 
-        has_session_files = False
+        #has_session_files = False
 
         for file in onlyfiles:
             if file.endswith('.zip'):
@@ -148,21 +156,16 @@ class SESSION_IMPORTER():
                     data = file.read()
 
                 data_list = data.split(",");
-                # tsdt = timestamp_to_datetime(session_at)
-
                 timestamp = session_at
-
                 data_list_index = 0
-
-                # since the data stream is pretty huge, we don't want to use all of the data.
-                # So we can reduce the size of the stream.
-                # The value means to downsize how many times of the data feed.
-                down_size = 30
+                down_size = self.DOWN_SIZE
 
                 # caculate the correct interval if we downsize the data stream
                 interval = down_size * import_file['interval']
+
                 data_type = import_file['data_type']
 
+                # Create table if not exists
                 query = "CREATE TABLE IF NOT EXISTS " + table + " (ts timestamptz, value " + data_type + ");"
 
                 for value in data_list:
@@ -195,17 +198,13 @@ class SESSION_IMPORTER():
             # print session_file_path
             if exists(session_file_path):
 
-                has_session_files = True
+                #has_session_files = True
 
                 # print "session_file_path:", session_file_path
                 print "Session :", dir
 
                 session_at = self.proccess_session_file(session_file_path)
                 self.import_files_to_db(sub_dir_path, session_at)
-
-                # json file defined the database table name and the datastream file name
-                # and interval which we want to import to database later
-                IMOPORT_JSON = self.IMOPORT_JSON
 
                 print 'delete tmp', sub_dir_path
                 shutil.rmtree(sub_dir_path)
