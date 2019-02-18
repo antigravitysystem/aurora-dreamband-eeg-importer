@@ -215,7 +215,8 @@ class SESSION_IMPORTER():
                 print 'No file exists! Please put session zip files under \"sessions\" folder. EXIT!'
                 sys.exit()
 
-        self.conn.close()
+        if not self.conn.closed:
+            self.conn.close()
 
 if __name__ == '__main__':
     importer = SESSION_IMPORTER()
