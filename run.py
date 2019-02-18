@@ -15,8 +15,7 @@ def allowed_file(filename):
 importer = aurora.SESSION_IMPORTER()
 
 @app.route('/', methods=['GET', 'POST'])
-@app.route('/upload', methods=['GET', 'POST'])
-def upload_file():
+def index():
     if request.method == 'POST':
         # check if the post request has the file part
         if 'file' not in request.files:
