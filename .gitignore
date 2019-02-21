@@ -3,3 +3,4 @@
 sessions/
 .vscode/
 db.conf
+__pycache__
