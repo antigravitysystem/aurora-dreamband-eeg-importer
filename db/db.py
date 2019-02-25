@@ -37,22 +37,24 @@ def db_query(query, **param):
         connection = psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST, port=DB_PORT)
         cursor = connection.cursor()
         # Print PostgreSQL Connection properties
-        print ( connection.get_dsn_parameters(),"\n")
+        # print ( connection.get_dsn_parameters(),"\n")
         # Print PostgreSQL version
         cursor.execute(query)
 
-        if fetchone == True:
-            record = cursor.fetchone()
-        else:
-            record = cursor.fetchall()
-
         if commit == True:
             connection.commit()
+        else:
+            if fetchone == True:
+                record = cursor.fetchone()
+            else:
+                record = cursor.fetchall()
 
-        print("Query result - ", record,"\n")
+            print("Query result - ", record,"\n")
 
-        return record
+            return record
+
     except (Exception, psycopg2.Error) as error :
+
         print ("Error while connecting to PostgreSQL", error)
     finally:
         #closing database connection.
