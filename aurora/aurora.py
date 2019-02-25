@@ -12,6 +12,10 @@ from os import listdir
 from os.path import isfile, join, splitext, exists
 from pprint import pprint
 from datetime import datetime
+from psycopg2.extras import RealDictCursor
+
+sys.path.append(os.path.abspath('../db'))
+from db import db
 
 class SESSION_IMPORTER():
     def __init__(self):
@@ -31,13 +35,13 @@ class SESSION_IMPORTER():
 
         # check and create folder
         if not exists(self.SESSIONS_DIR):
-            print "Create \"sessions\" folder"
+            print("Create \"sessions\" folder")
             os.makedirs(self.SESSIONS_DIR)
 
         if not exists(self.TMP_PATH):
             os.makedirs(self.TMP_PATH)
 
-        self.db_connect()
+        
 
     def timestamp_to_datetime(self, timestamp):
         """
@@ -53,6 +57,7 @@ class SESSION_IMPORTER():
         dt = datetime.utcfromtimestamp(timestamp)
         local_dt = timezone.localize(dt)
         tsdt = local_dt.isoformat()
+
         return tsdt
 
     def extract_files(self):
@@ -72,12 +77,12 @@ class SESSION_IMPORTER():
                 # test the zip file and extract it
                 try:
                     with zipfile.ZipFile(file_path) as zip_ref:
-                        print "Extracting", file
+                        print("Extracting", file)
                         zip_ref.extractall(tmp_session_dir)
 
                 # has_session_files = True
                 except zipfile.BadZipfile:
-                    print "Bad zip! Skip..." + file + "\n"
+                    print("Bad zip! Skip..." + file + "\n")
                     # print 'delete zip', file_path
                 os.remove(file_path)
 
@@ -103,13 +108,17 @@ class SESSION_IMPORTER():
         config_file = self.CONFIG_FILE
         DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT = self.read_config(config_file)
 
-        try:
-            self.conn = psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST, port=DB_PORT)
-            self.cur = self.conn.cursor()
-            print "Database connected"
-        except:
-            print "Database connection failed. EXIT"
-            sys.exit()
+        # try:
+        self.conn = psycopg2.connect(database=DB_NAME, user=DB_USER, password=DB_PASS, host=DB_HOST, port=DB_PORT)
+        self.cur = self.conn.cursor(cursor_factory=RealDictCursor)
+        print("Database connected")
+        # except:
+        #     print("Database connection failed. EXIT")
+        #     sys.exit()
+
+    def db_close(self):
+        if not self.conn.closed:
+            self.conn.close()
 
     def proccess_session_file(self, session_file_path):
                 		# open session.txt, look for string "date: xxxx-xx-xx"
@@ -123,13 +132,12 @@ class SESSION_IMPORTER():
             awake_at = data['awake_at']
             awake_at_dt = self.timestamp_to_datetime(data['awake_at'])
 
+            self.db_connect()
             query = "CREATE TABLE IF NOT EXISTS sessions (id uuid, session_at timestamptz, awake_at timestamptz);"
             query += "INSERT INTO sessions (id, session_at, awake_at) SELECT '" + session_id + "','" + str(session_at_dt) + "','" + str(awake_at_dt) + "' WHERE NOT EXISTS (SELECT id FROM sessions WHERE id='" + session_id + "');";
-            print "Session ID: " + session_id
-            print "Session At: " + session_at_dt
-            self.cur.execute(query)
-            self.conn.commit()
-
+            print("Session ID: " + session_id)
+            print("Session At: " + session_at_dt)
+            db.db_query(query, commit=True)
             return session_at
 
     def import_files_to_db(self, sub_dir_path, session_at):
@@ -148,7 +156,7 @@ class SESSION_IMPORTER():
             if stream_file in stream_files:
 
                 table = import_file['table']
-                print "Import to table:", table
+                print("Import to table:", table)
 
                 stream_file_path = join(sub_dir_path, stream_file)
 
@@ -176,11 +184,9 @@ class SESSION_IMPORTER():
                         query += "INSERT INTO " + table + " (ts, value) SELECT '" + tsdt + "','" + str(value) + "' WHERE NOT EXISTS (SELECT ts FROM " + table + " WHERE ts='" + tsdt + "');";
                     data_list_index += 1
 
-                print "Proccessing", stream_file + "\n"
+                print("Proccessing", stream_file + "\n")
 
-                self.cur.execute(query)
-                self.conn.commit()
-
+                db.db_query(query, commit=True)
 # sys.exit()
     def run_import(self):
         TMP_PATH = self.TMP_PATH
@@ -188,7 +194,7 @@ class SESSION_IMPORTER():
         self.extract_files()
         dirs = listdir(TMP_PATH)
 
-        print dirs
+        print(dirs)
         for dir in dirs:
             sub_dir_path = join(TMP_PATH, dir)
 
@@ -201,23 +207,23 @@ class SESSION_IMPORTER():
                 #has_session_files = True
 
                 # print "session_file_path:", session_file_path
-                print "Session :", dir
+                print("Session :", dir)
 
                 session_at = self.proccess_session_file(session_file_path)
                 self.import_files_to_db(sub_dir_path, session_at)
 
-                print 'delete tmp', sub_dir_path
+                print('delete tmp', sub_dir_path)
                 shutil.rmtree(sub_dir_path)
 
                 # if no files available, just stop
             # if not has_session_files:
             else:
-                print 'No file exists! Please put session zip files under \"sessions\" folder. EXIT!'
+                print('No file exists! Please put session zip files under \"sessions\" folder. EXIT!')
                 sys.exit()
 
-        if not self.conn.closed:
-            self.conn.close()
+
 
 if __name__ == '__main__':
     importer = SESSION_IMPORTER()
     importer.run_import()
+    
