@@ -1,7 +1,9 @@
 from aurora import aurora
 import os
-from flask import Flask, flash, request, redirect, url_for, render_template
+import json
+from flask import Flask, flash, request, redirect, url_for, render_template, Response
 from werkzeug.utils import secure_filename
+from db import db
 
 UPLOAD_FOLDER = './sessions'
 ALLOWED_EXTENSIONS = set(['zip','csv', 'txt', 'json'])
@@ -36,9 +38,17 @@ def index():
             return redirect(url_for('index', filename=filename))
     return render_template('index.html', title='Welcome')
 
+@app.route('/query', methods=['GET'])
+def query():
+
+    query = "SELECT * from sessions"
+    record = db.db_query(query)
+
+    return Response(json.dumps(str(record), indent=2), mimetype="text/plain")
+
 try:
     app.run(host="0.0.0.0")
-#     importer = aurora.SESSION_IMPORTER()
-#     importer.run_import()
+
 except KeyboardInterrupt:
-    print "Quit"
+    importer.db_close()
+    print ("Quit")
